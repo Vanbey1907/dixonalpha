@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canlı TV</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .categories, .channels {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .category, .channel {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #adminIcon {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        #adminPanel {
+            display: none;
+            position: fixed;
+            top: 50px;
+            right: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        #player {
+            width: 100%;
+            max-width: 800px;
+            height: 450px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Canlı TV</h1>
+        
+        <div id="player"></div>
+
+        <div id="categories" class="categories"></div>
+        <div id="channels" class="channels"></div>
+    </div>
+
+    <div id="adminIcon">👤</div>
+
+    <div id="adminPanel">
+        <div class="adminContent">
+            <h2>Admin Paneli</h2>
+            <input type="password" id="adminPassword" placeholder="Şifre">
+            <button onclick="login()">Giriş</button>
+
+            <div id="adminContent" style="display: none;">
+                <h3>Kanal Ekle</h3>
+                <select id="categorySelect"></select>
+                <input type="text" id="channelName" placeholder="Kanal Adı">
+                <input type="text" id="channelUrl" placeholder="Kanal URL">
+                <button onclick="addChannel()">Kanal Ekle</button>
+
+                <h3>Kategori Ekle/Düzenle</h3>
+                <input type="text" id="categoryName" placeholder="Kategori Adı">
+                <button onclick="addCategory()">Kategori Ekle/Güncelle</button>
+
+                <h3>Mevcut Kanallar</h3>
+                <div id="channelList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.1.5/hls.min.js"></script>
+    <script>
+        let categories = JSON.parse(localStorage.getItem('categories')) || [];
+        let channels = JSON.parse(localStorage.getItem('channels')) || [];
+
+        function updateLocalStorage() {
+            localStorage.setItem('categories', JSON.stringify(categories));
+            localStorage.setItem('channels', JSON.stringify(channels));
+        }
+
+        function renderCategories() {
+            const categoriesEl = document.getElementById('categories');
+            categoriesEl.innerHTML = '';
+            categories.forEach(category => {
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'category';
+                categoryEl.textContent = category;
+                categoryEl.onclick = () => filterChannels(category);
+                categoriesEl.appendChild(categoryEl);
+            });
+
+            const categorySelect = document.getElementById('categorySelect');
+            categorySelect.innerHTML = '';
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                categorySelect.appendChild(option);
+            });
+        }
+
+        function renderChannels(filteredChannels = channels) {
+            const channelsEl = document.getElementById('channels');
+            channelsEl.innerHTML = '';
+            filteredChannels.forEach(channel => {
+                const channelEl = document.createElement('div');
+                channelEl.className = 'channel';
+                channelEl.textContent = channel.name;
+                channelEl.onclick = () => playChannel(channel.url);
+                channelsEl.appendChild(channelEl);
+            });
+        }
+
+        function filterChannels(category) {
+            const filteredChannels = channels.filter(channel => channel.category === category);
+            renderChannels(filteredChannels);
+        }
+
+        function playChannel(url) {
+            const playerEl = document.getElementById('player');
+            playerEl.innerHTML = '';
+
+            if (Hls.isSupported()) {
+                const video = document.createElement('video');
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.controls = true;
+                playerEl.appendChild(video);
+
+                const hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(video);
+            } else if (playerEl.canPlayType('application/vnd.apple.mpegurl')) {
+                playerEl.src = url;
+            } else {
+                playerEl.innerHTML = 'HLS playback is not supported in your browser.';
+            }
+        }
+
+        function login() {
+            const password = document.getElementById('adminPassword').value;
+            if (password === 'admin') { // Gerçek uygulamada güvenli bir kimlik doğrulama kullanın
+                document.getElementById('adminContent').style.display = 'block';
+                renderChannelList();
+            } else {
+                alert('Yanlış şifre!');
+            }
+        }
+
+        function addChannel() {
+            const category = document.getElementById('categorySelect').value;
+            const name = document.getElementById('channelName').value;
+            const url = document.getElementById('channelUrl').value;
+            if (category && name && url) {
+                channels.push({ category, name, url });
+                updateLocalStorage();
+                renderChannels();
+                renderChannelList();
+                document.getElementById('channelName').value = '';
+                document.getElementById('channelUrl').value = '';
+            }
+        }
+
+        function addCategory() {
+            const name = document.getElementById('categoryName').value;
+            if (name && !categories.includes(name)) {
+                categories.push(name);
+                updateLocalStorage();
+                renderCategories();
+                document.getElementById('categoryName').value = '';
+            }
+        }
+
+        function renderChannelList() {
+            const channelListEl = document.getElementById('channelList');
+            channelListEl.innerHTML = '';
+            channels.forEach((channel, index) => {
+                const channelEl = document.createElement('div');
+                channelEl.textContent = `${channel.name} (${channel.category})`;
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Sil';
+                deleteBtn.onclick = () => deleteChannel(index);
+                channelEl.appendChild(deleteBtn);
+                channelListEl.appendChild(channelEl);
+            });
+        }
+
+        function deleteChannel(index) {
+            channels.splice(index, 1);
+            updateLocalStorage();
+            renderChannels();
+            renderChannelList();
+        }
+
+        document.getElementById('adminIcon').onclick = () => {
+            document.getElementById('adminPanel').style.display = 'block';
+        };
+
+        renderCategories();
+        renderChannels();
+    </script>
+</body>
+</html>
